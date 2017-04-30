@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, session, redirect, url_for
-from models import db, User
-from forms import SignupForm, LoginForm
+from models import db, User, Place
+from forms import SignupForm, LoginForm, AddressForm
 
 app = Flask(__name__)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
@@ -14,25 +14,30 @@ app.secret_key = "development-key"
 def index():
   return render_template("index.html")
 
-@app.route("/signup", methods=['GET', 'POST'])
+@app.route("/about")
+def about():
+  return render_template("about.html")
+
+@app.route("/signup", methods=["GET", "POST"])
 def signup():
-    if 'email' in session:
-        return redirect(url_for('home'))
+  if 'email' in session:
+    return redirect(url_for('home'))
 
-    form = SignupForm()
-    if request.method == 'POST':
-        if form.validate() == False:
-            return render_template('signup.html', form=form)
-        else:
-            newuser = User(form.first_name.data, form.last_name.data, form.email.data, form.password.data)
-            db.session.add(newuser)
-            db.session.commit()
+  form = SignupForm()
 
-            session['email'] = newuser.email
-            return redirect(url_for('home'))
+  if request.method == "POST":
+    if form.validate() == False:
+      return render_template('signup.html', form=form)
+    else:
+      newuser = User(form.first_name.data, form.last_name.data, form.email.data, form.password.data)
+      db.session.add(newuser)
+      db.session.commit()
 
-    elif request.method == 'GET':
-        return render_template('signup.html', form=form)
+      session['email'] = newuser.email
+      return redirect(url_for('home'))
+
+  elif request.method == "GET":
+    return render_template('signup.html', form=form)
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
@@ -63,17 +68,33 @@ def logout():
   session.pop('email', None)
   return redirect(url_for('index'))
 
-
-@app.route("/home")
+@app.route("/home", methods=["GET", "POST"])
 def home():
-    if 'email' not in session:
-        return redirect(url_for('login'))
+  if 'email' not in session:
+    return redirect(url_for('login'))
 
-    return render_template("home.html")
+  form = AddressForm()
 
-@app.route("/about")
-def about():
-  return render_template("about.html")
+  places = []
+  my_coordinates = (37.4221, -122.0844)
+
+  if request.method == 'POST':
+    if form.validate() == False:
+      return render_template('home.html', form=form)
+    else:
+      # get the address
+      address = form.address.data
+
+      # query for places around it
+      p = Place()
+      my_coordinates = p.address_to_latlng(address)
+      places = p.query(address)
+
+      # return those results
+      return render_template('home.html', form=form, my_coordinates=my_coordinates, places=places)
+
+  elif request.method == 'GET':
+    return render_template("home.html", form=form, my_coordinates=my_coordinates, places=places)
 
 if __name__ == "__main__":
   app.run(debug=True,host='0.0.0.0')
